@@ -36,6 +36,13 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/all-books/:id", async (req, res) => {
+      const id = req.params.id 
+      const query = { _id: new ObjectId(id) };
+      const result = await allBooks.findOne(query)
+      res.send(result);
+    });
+
     app.post("/add-book", async (req, res) => {
       const book = req.body.bookInfo;
       const result = await allBooks.insertOne(book);
