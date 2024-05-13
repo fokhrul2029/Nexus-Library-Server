@@ -26,6 +26,7 @@ async function run() {
     const database = client.db("Nexus-Library");
     const allBooks = database.collection("all-books");
     const booksCategories = database.collection("books-categories");
+    const writerList = database.collection("writer_list");
 
     app.get("/", (req, res) => {
       res.send("Hello World!");
@@ -57,6 +58,12 @@ async function run() {
 
     app.get("/books-categories", async (req, res) => {
       const cursor = booksCategories.find();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.get("/writers", async (req, res) => {
+      const cursor = writerList.find();
       const result = await cursor.toArray();
       res.send(result);
     });
