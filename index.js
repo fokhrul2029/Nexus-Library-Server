@@ -21,7 +21,7 @@ const client = new MongoClient(uri, {
 
 async function run() {
   try {
-    await client.connect();
+    // await client.connect();
 
     const database = client.db("Nexus-Library");
     const allBooks = database.collection("all-books");
@@ -44,9 +44,39 @@ async function run() {
       res.send(result);
     });
 
+    app.get("/category-books", async (req, res) => {
+      let query = {};
+      if (req.query?.category) {
+        query = { category: req.query?.category };
+      }
+      // console.log(query);
+      const cursor = allBooks.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
     app.get("/books-categories", async (req, res) => {
       const cursor = booksCategories.find();
-      const result = (await cursor.toArray()).reverse();
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    app.put("/update/:id", async (req, res) => {
+      const id = req.params.id;
+      const book = req.body.bookInfo;
+      const options = { upsert: true };
+      const filter = { _id: new ObjectId(id) };
+      const updateDoc = {
+        $set: {
+          name: book.name,
+          category: book.category,
+          img: book.img,
+          description: book.description,
+          quantity: book.quantity,
+          rating: book.rating,
+        },
+      };
+      const result = await allBooks.updateOne(filter, updateDoc, options);
       res.send(result);
     });
 
@@ -56,7 +86,7 @@ async function run() {
       res.send(result);
     });
 
-    await client.db("admin").command({ ping: 1 });
+    // await client.db("admin").command({ ping: 1 });
     console.log(
       "Pinged your deployment. You successfully connected to MongoDB!"
     );
