@@ -108,33 +108,74 @@ async function run() {
     app.patch("/borrowed", async (req, res) => {
       try {
         const book = req.body.borrowInfo;
-
-        // Insert the borrowed book information
         const insertResult = await borrowedBooks.insertOne(book);
-
-        // Get the id from the request body or any appropriate source
         const id = book.bookInfo._id;
         const filter = { _id: new ObjectId(id) };
-
-        // Parse the quantity and prepare the update document
         const quantity = book.bookInfo.quantity;
 
         const updateDoc = {
-          $set: {
-            quantity: quantity - 1, // Ensure to update the correct nested field
+          $inc: {
+            quantity: -1,
           },
         };
 
-        // Update the quantity in the allBooks collection
         const updateResult = await allBooks.updateOne(filter, updateDoc);
 
-        // Respond with the results of both operations
         res.status(200).send({ insertResult, updateResult });
       } catch (error) {
         console.error(error);
         res
           .status(500)
           .send({ error: "An error occurred while processing the request" });
+      }
+    });
+
+    app.patch("/return-books/:id", async (req, res) => {
+      try {
+        const id = req.params.id;
+        const filter = { _id: new ObjectId(id) };
+
+        // Find the borrowed book
+        const borrowedBook = await borrowedBooks.findOne(filter);
+
+        if (!borrowedBook) {
+          return res.status(404).send({ error: "Borrowed book not found" });
+        }
+
+        const bookId = borrowedBook.bookInfo._id; ;
+        const filterBook = { _id: new ObjectId(bookId) };
+
+        // Increment the book quantity
+        const updateDoc = {
+          $inc: {
+            quantity: 1,
+          },
+        };
+
+        const updateResult = await allBooks.updateOne(filterBook, updateDoc);
+
+        if (updateResult.modifiedCount === 0) {
+          return res
+            .status(500)
+            .send({ error: "Failed to update book quantity" });
+        }
+
+        // Remove the borrowed book entry
+        const deleteResult = await borrowedBooks.deleteOne(filter);
+
+        if (deleteResult.deletedCount === 0) {
+          return res
+            .status(500)
+            .send({ error: "Failed to remove borrowed book entry" });
+        }
+
+        // Send the results
+        res.status(200).send({ updateResult, deleteResult });
+      } catch (error) {
+        console.error(error);
+        res
+          .status(500)
+          .send({ error: "An error occurred while processing the return" });
       }
     });
 
