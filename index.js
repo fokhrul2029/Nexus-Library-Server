@@ -1,11 +1,23 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 require("dotenv").config();
 
 // MiddleWare
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      // "https://nexus-library-ab88f.web.app",
+      // "https://nexus-library-ab88f.firebaseapp.com",
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
-app.use(cors());
+app.use(cookieParser());
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.zebesho.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -19,8 +31,51 @@ const client = new MongoClient(uri, {
   },
 });
 
+// MiddleWare
+const verifyToken = async (req, res, next) => {
+  const token = req.cookies?.token;
+  // console.log("1", token);
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized!" });
+  }
+  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+    if (err) {
+      // console.log("The Error is:", err);
+      return res.status(401).send({ message: "Unauthorized!" });
+    }
+    // console.log("Value of the token: ", decoded);
+    req.decoded = decoded;
+    next();
+  });
+};
+
 async function run() {
   try {
+    // Auth API
+
+    app.post("/jwt", async (req, res) => {
+      const user = req.body;
+      const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
+        expiresIn: "1h",
+      });
+
+      res
+        .cookie("token", token, {
+          httpOnly: true,
+          secure: false,
+          // sameSite: "none",
+        })
+        .status(200)
+        .send({ success: true });
+    });
+
+    //clearing Token
+    app.post("/logout", async (req, res) => {
+      const user = req.body;
+      // console.log("logging out", user);
+      res.clearCookie("token", { maxAge: 0 }).send({ success: true });
+    });
+
     // await client.connect();
 
     const database = client.db("Nexus-Library");
@@ -30,29 +85,31 @@ async function run() {
 
     const borrowedBooks = database.collection("borrowed-books");
 
+    // Normal Api
+
     app.get("/", (req, res) => {
       res.send("Hello World!");
     });
 
-    app.get("/all-books", async (req, res) => {
+    app.get("/all-books", verifyToken, async (req, res) => {
       const cursor = allBooks.find();
       const result = (await cursor.toArray()).reverse();
       res.send(result);
     });
 
-    app.get("/all-books/:id", async (req, res) => {
+    app.get("/all-books/:id" , async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await allBooks.findOne(query);
       res.send(result);
     });
 
-    app.get("/category-books", async (req, res) => {
+    app.get("/category-books", verifyToken ,  async (req, res) => {
       let query = {};
       if (req.query?.category) {
         query = { category: req.query?.category };
       }
-      // console.log(query);
+
       const cursor = allBooks.find(query);
       const result = await cursor.toArray();
       res.send(result);
@@ -69,7 +126,11 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result);
     });
-    app.get("/borrowed-books", async (req, res) => {
+
+    app.get("/borrowed-books", verifyToken, async (req, res) => {
+      if (req.query?.email !== req.decoded?.email) {
+        return res.status(403).send({ message: "Forbidden Access!" });
+      }
       let query = {};
       if (req.query?.email) {
         query = { email: req.query?.email };
@@ -111,7 +172,6 @@ async function run() {
         const insertResult = await borrowedBooks.insertOne(book);
         const id = book.bookInfo._id;
         const filter = { _id: new ObjectId(id) };
-        const quantity = book.bookInfo.quantity;
 
         const updateDoc = {
           $inc: {
@@ -142,7 +202,7 @@ async function run() {
           return res.status(404).send({ error: "Borrowed book not found" });
         }
 
-        const bookId = borrowedBook.bookInfo._id; ;
+        const bookId = borrowedBook.bookInfo._id;
         const filterBook = { _id: new ObjectId(bookId) };
 
         // Increment the book quantity
