@@ -28,6 +28,8 @@ async function run() {
     const booksCategories = database.collection("books-categories");
     const writerList = database.collection("writer_list");
 
+    const borrowedBooks = database.collection("borrowed-books");
+
     app.get("/", (req, res) => {
       res.send("Hello World!");
     });
@@ -67,6 +69,16 @@ async function run() {
       const result = await cursor.toArray();
       res.send(result);
     });
+    app.get("/borrowed-books", async (req, res) => {
+      let query = {};
+      if (req.query?.email) {
+        query = { email: req.query?.email };
+      }
+      // console.log(query)
+      const cursor = borrowedBooks.find(query);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
 
     app.put("/update/:id", async (req, res) => {
       const id = req.params.id;
@@ -91,6 +103,39 @@ async function run() {
       const book = req.body.bookInfo;
       const result = await allBooks.insertOne(book);
       res.send(result);
+    });
+
+    app.patch("/borrowed", async (req, res) => {
+      try {
+        const book = req.body.borrowInfo;
+
+        // Insert the borrowed book information
+        const insertResult = await borrowedBooks.insertOne(book);
+
+        // Get the id from the request body or any appropriate source
+        const id = book.bookInfo._id;
+        const filter = { _id: new ObjectId(id) };
+
+        // Parse the quantity and prepare the update document
+        const quantity = book.bookInfo.quantity;
+
+        const updateDoc = {
+          $set: {
+            quantity: quantity - 1, // Ensure to update the correct nested field
+          },
+        };
+
+        // Update the quantity in the allBooks collection
+        const updateResult = await allBooks.updateOne(filter, updateDoc);
+
+        // Respond with the results of both operations
+        res.status(200).send({ insertResult, updateResult });
+      } catch (error) {
+        console.error(error);
+        res
+          .status(500)
+          .send({ error: "An error occurred while processing the request" });
+      }
     });
 
     // await client.db("admin").command({ ping: 1 });
