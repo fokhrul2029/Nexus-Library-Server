@@ -32,22 +32,22 @@ const client = new MongoClient(uri, {
 });
 
 // MiddleWare
-const verifyToken = async (req, res, next) => {
-  const token = req.cookies?.token;
-  // console.log("1", token);
-  if (!token) {
-    return res.status(401).send({ message: "Unauthorized!" });
-  }
-  jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
-    if (err) {
-      // console.log("The Error is:", err);
-      return res.status(401).send({ message: "Unauthorized!" });
-    }
-    // console.log("Value of the token: ", decoded);
-    req.decoded = decoded;
-    next();
-  });
-};
+// const verifyToken = async (req, res, next) => {
+//   const token = req.cookies?.token;
+//   // console.log("1", token);
+//   if (!token) {
+//     return res.status(401).send({ message: "Unauthorized!" });
+//   }
+//   jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+//     if (err) {
+//       // console.log("The Error is:", err);
+//       return res.status(401).send({ message: "Unauthorized!" });
+//     }
+//     // console.log("Value of the token: ", decoded);
+//     req.decoded = decoded;
+//     next();
+//   });
+// };
 
 
 async function run() {
@@ -133,9 +133,9 @@ async function run() {
     });
 
     app.get("/borrowed-books", async (req, res) => {
-      if (req.query?.email !== req.decoded?.email) {
-        return res.status(403).send({ message: "Forbidden Access!" });
-      }
+      // if (req.query?.email !== req.decoded?.email) {
+      //   return res.status(403).send({ message: "Forbidden Access!" });
+      // }
       let query = {};
       if (req.query?.email) {
         query = { email: req.query?.email };
