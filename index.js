@@ -10,14 +10,14 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      // "https://nexus-library-ab88f.web.app",
-      // "https://nexus-library-ab88f.firebaseapp.com",
+      "https://nexus-library-ab88f.web.app",
+      "https://nexus-library-ab88f.firebaseapp.com",
     ],
     credentials: true,
   })
 );
-app.use(express.json());
 app.use(cookieParser());
+app.use(express.json());
 
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.zebesho.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0`;
@@ -49,22 +49,33 @@ const verifyToken = async (req, res, next) => {
   });
 };
 
+// client
+//   .connect()
+//   .then(() => {
+//     console.log("MongoDB Connected");
+//   })
+//   .catch((err) => {
+//     console.log(err);
+//   });
+
 async function run() {
   try {
     // Auth API
 
+    const cookieOptions = {
+      httpOnly: true,
+      secure: process.env.DEPLOYED === "production" ? false : true,
+      sameSite: process.env.DEPLOYED === "production" ? "none" : "strict",
+    };
+
     app.post("/jwt", async (req, res) => {
       const user = req.body;
       const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, {
-        expiresIn: "1h",
+        expiresIn: "24h",
       });
 
       res
-        .cookie("token", token, {
-          httpOnly: true,
-          secure: false,
-          // sameSite: "none",
-        })
+        .cookie("token", token, cookieOptions)
         .status(200)
         .send({ success: true });
     });
@@ -73,7 +84,9 @@ async function run() {
     app.post("/logout", async (req, res) => {
       const user = req.body;
       // console.log("logging out", user);
-      res.clearCookie("token", { maxAge: 0 }).send({ success: true });
+      res
+        .clearCookie("token", { ...cookieOptions, maxAge: 0 })
+        .send({ success: true });
     });
 
     // await client.connect();
@@ -81,7 +94,7 @@ async function run() {
     const database = client.db("Nexus-Library");
     const allBooks = database.collection("all-books");
     const booksCategories = database.collection("books-categories");
-    const writerList = database.collection("writer_list");
+    const writerList = database.collection("writer-list");
 
     const borrowedBooks = database.collection("borrowed-books");
 
@@ -97,14 +110,14 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-books/:id" , async (req, res) => {
+    app.get("/all-books/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await allBooks.findOne(query);
       res.send(result);
     });
 
-    app.get("/category-books", verifyToken ,  async (req, res) => {
+    app.get("/category-books", verifyToken, async (req, res) => {
       let query = {};
       if (req.query?.category) {
         query = { category: req.query?.category };
@@ -168,15 +181,35 @@ async function run() {
 
     app.patch("/borrowed", async (req, res) => {
       try {
-        const book = req.body.borrowInfo;
-        const insertResult = await borrowedBooks.insertOne(book);
-        const id = book.bookInfo._id;
-        const filter = { _id: new ObjectId(id) };
+        const borrowInfo = req.body.borrowInfo;
+        const bookId = borrowInfo.bookInfo._id;
+        const userEmail = borrowInfo.email;
+        const filter = { _id: new ObjectId(bookId) };
+
+        // Check if the book is already borrowed by the user
+        const existingBorrowedBook = await borrowedBooks.findOne({
+          "bookInfo._id": bookId,
+          email: userEmail,
+        });
+
+        if (existingBorrowedBook) {
+          return res
+            .status(400)
+            .send({ error: "This book is already borrowed by the user" });
+        }
+
+        // Check if the book is in stock
+        const bookInStock = await allBooks.findOne(filter);
+
+        if (!bookInStock || bookInStock.quantity <= 0) {
+          return res.status(400).send({ error: "This book is out of stock" });
+        }
+
+        // Proceed with borrowing the book
+        const insertResult = await borrowedBooks.insertOne(borrowInfo);
 
         const updateDoc = {
-          $inc: {
-            quantity: -1,
-          },
+          $inc: { quantity: -1 },
         };
 
         const updateResult = await allBooks.updateOne(filter, updateDoc);
