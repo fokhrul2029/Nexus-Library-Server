@@ -96,7 +96,7 @@ async function run() {
       res.send("Hello World!");
     });
 
-    app.get("/all-books", verifyToken, async (req, res) => {
+    app.get("/all-books", async (req, res) => {
       const cursor = allBooks.find();
       const result = (await cursor.toArray()).reverse();
       res.send(result);
@@ -109,7 +109,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/category-books", verifyToken, async (req, res) => {
+    app.get("/category-books", async (req, res) => {
       let query = {};
       if (req.query?.category) {
         query = { category: req.query?.category };
@@ -132,7 +132,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/borrowed-books", verifyToken, async (req, res) => {
+    app.get("/borrowed-books", async (req, res) => {
       if (req.query?.email !== req.decoded?.email) {
         return res.status(403).send({ message: "Forbidden Access!" });
       }
@@ -165,7 +165,7 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/add-book", verifyToken ,  async (req, res) => {
+    app.post("/add-book" ,  async (req, res) => {
       const book = req.body.bookInfo;
       const result = await allBooks.insertOne(book);
       res.send(result);
