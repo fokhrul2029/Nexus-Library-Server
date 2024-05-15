@@ -49,14 +49,6 @@ const verifyToken = async (req, res, next) => {
   });
 };
 
-// client
-//   .connect()
-//   .then(() => {
-//     console.log("MongoDB Connected");
-//   })
-//   .catch((err) => {
-//     console.log(err);
-//   });
 
 async function run() {
   try {
@@ -110,7 +102,7 @@ async function run() {
       res.send(result);
     });
 
-    app.get("/all-books/:id", async (req, res) => {
+    app.get("/all-books/:id" ,  async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await allBooks.findOne(query);
@@ -173,7 +165,7 @@ async function run() {
       res.send(result);
     });
 
-    app.post("/add-book", async (req, res) => {
+    app.post("/add-book", verifyToken ,  async (req, res) => {
       const book = req.body.bookInfo;
       const result = await allBooks.insertOne(book);
       res.send(result);
